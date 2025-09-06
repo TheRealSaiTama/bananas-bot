@@ -39,32 +39,22 @@ def create_reddit_client() -> praw.Reddit | None:
 
 
 def _extract_instruction(text: str) -> str | None:
-    """Extract user instruction following a @bananas or u/bananas mention.
-
-    Heuristics:
-    - Prefer the first quoted segment after the mention ("..." or '...').
-    - Otherwise, take the remainder of the line after the mention.
-    - Return None if nothing meaningful is found.
-    """
     if not text:
         return None
 
     lowered = text.lower()
-    # Find first mention index
     m = re.search(r"(@bananas|u/bananas)", lowered)
     if not m:
         return None
     start = m.end()
     tail = text[start:]
 
-    # Try to find a quoted instruction after the mention
     quote_match = re.search(r"[\"'“”](.*?)[\"'“”]", tail)
     if quote_match and quote_match.group(1).strip():
         candidate = quote_match.group(1).strip()
     else:
         candidate = tail.strip(" \t:-—,>\n\r\f\v")
 
-    # Sanitize and bound length
     if not candidate:
         return None
     candidate = re.sub(r"\s+", " ", candidate).strip()
@@ -74,16 +64,14 @@ def _extract_instruction(text: str) -> str | None:
 
 
 def stream_and_reply(reddit: praw.Reddit) -> None:
-    # Config: scope and guardrails
-    subreddits = os.getenv("SUBREDDITS", "test")  # e.g. "test+pics+funny"
+    subreddits = os.getenv("SUBREDDITS", "test")
     max_calls_per_hour = int(os.getenv("MAX_CALLS_PER_HOUR", "10"))
     user_cooldown_sec = int(os.getenv("USER_COOLDOWN_SECONDS", "120"))
-    rate_limit_mode = os.getenv("RATE_LIMIT_MODE", "skip").lower()  # skip|reply
+    rate_limit_mode = os.getenv("RATE_LIMIT_MODE", "skip").lower()
     rate_limit_message = os.getenv(
         "RATE_LIMIT_MESSAGE",
         "🍌 I'm at capacity right now. Try again in a bit!",
     )
-    # Optional allowlist (comma-separated reddit usernames). If set, only these users can trigger.
     allowed_users_env = os.getenv("ALLOWED_USERS", "")
     allowed_users = {
         u.strip().lower()
@@ -91,7 +79,6 @@ def stream_and_reply(reddit: praw.Reddit) -> None:
         if u.strip()
     }
 
-    # Tracking
     processed_comment_ids: set[str] = set()
     user_last_call: dict[str, float] = {}
     window_start = time.time()
@@ -99,23 +86,20 @@ def stream_and_reply(reddit: praw.Reddit) -> None:
 
     for comment in reddit.subreddit(subreddits).stream.comments(skip_existing=True):
         body = getattr(comment, "body", "")
-        print(f"RAW >>>{repr(body)}<<<")          # exact bytes
-        if "u/bananas" in body.lower() or "@bananas" in body.lower():           # simple test
+        print(f"RAW >>>{repr(body)}<<<")
+        if "u/bananas" in body.lower() or "@bananas" in body.lower():
             print("MATCH!")
-            import requests, base64, tempfile  # noqa: F401
+            import requests, base64, tempfile
             try:
-                # De-dupe
                 if getattr(comment, "id", None) in processed_comment_ids:
                     continue
                 processed_comment_ids.add(comment.id)
 
-                # Reset hourly window
                 now = time.time()
                 if now - window_start >= 3600:
                     window_start = now
                     calls_this_hour = 0
 
-                # Per-user cooldown and allowlist
                 author = getattr(getattr(comment, "author", None), "name", None) or "anonymous"
                 if allowed_users and author.lower() not in allowed_users:
                     continue
@@ -128,7 +112,6 @@ def stream_and_reply(reddit: praw.Reddit) -> None:
                             pass
                     continue
 
-                # Global hourly cap
                 if max_calls_per_hour >= 0 and calls_this_hour >= max_calls_per_hour:
                     if rate_limit_mode == "reply":
                         try:
@@ -137,7 +120,6 @@ def stream_and_reply(reddit: praw.Reddit) -> None:
                             pass
                     continue
 
-                # Update trackers before heavy work
                 user_last_call[author] = now
                 calls_this_hour += 1
 
@@ -171,7 +153,6 @@ def stream_and_reply(reddit: praw.Reddit) -> None:
 
                 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-                # Determine transformation instruction from the comment text
                 user_instruction = _extract_instruction(body) or "convert the image to grayscale"
                 prompt = (
                     "Transform the provided image according to this instruction: "
@@ -184,17 +165,15 @@ def stream_and_reply(reddit: praw.Reddit) -> None:
                     contents=[prompt, {"inline_data": {"mime_type": mime, "data": b64_in}}],
                 )
 
-                # Extract bytes
                 for part in response.candidates[0].content.parts:
-                    if part.inline_data:          # image part
+                    if part.inline_data:
                         b64_png = base64.b64encode(part.inline_data.data).decode("ascii")
                         break
-                else:                           # safety fallback
+                else:
                     raise RuntimeError("No image data returned")
-                # Upload to GitHub via Contents API
                 import datetime, hashlib
                 token = os.getenv("GITHUB_TOKEN")
-                repo = os.getenv("GITHUB_REPO")  # format: owner/repo, e.g. therealsaitama/kiskax-images
+                repo = os.getenv("GITHUB_REPO")
                 branch = os.getenv("GITHUB_BRANCH", "main")
 
                 if not token:
