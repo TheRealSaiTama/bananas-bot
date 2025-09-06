@@ -1,0 +1,39 @@
+services:
+  - type: worker
+    name: bananas-bot
+    env: docker
+    dockerfilePath: ./Dockerfile
+    autoDeploy: false
+    plan: free
+    envVars:
+      - key: REDDIT_CLIENT_ID
+        sync: false
+      - key: REDDIT_CLIENT_SECRET
+        sync: false
+      - key: REDDIT_USER_AGENT
+        sync: false
+      - key: REDDIT_USERNAME
+        sync: false
+      - key: REDDIT_PASSWORD
+        sync: false
+      - key: SUBREDDITS
+        value: test
+      - key: MAX_CALLS_PER_HOUR
+        value: "10"
+      - key: USER_COOLDOWN_SECONDS
+        value: "120"
+      - key: RATE_LIMIT_MODE
+        value: skip
+      - key: RATE_LIMIT_MESSAGE
+        value: "🍌 I'm at capacity right now. Try again in a bit!"
+      - key: ALLOWED_USERS
+        value: ""
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_REPO
+        sync: false
+      - key: GITHUB_BRANCH
+        value: main
+

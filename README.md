@@ -124,10 +124,29 @@ python main.py
 
 ## ☁️ Deploy (Community‑Ready)
 
-Add a “Deploy to Cloud Run” button to your fork for one‑click setups:
+Pick one of these options so others can run their own copy with their own keys (you don’t pay for their usage):
+
+1) Deploy to Cloud Run (buildpacks):
 
 ```
 [![Deploy to Google Cloud](https://deploy.cloud.run/button.svg)](https://deploy.cloud.run/?git_repo=https://github.com/TheRealSaiTama/bananas-bot)
+```
+
+After deploy, set environment variables in the service (your own keys). Note: current script is a long‑running worker; Cloud Run Jobs or a compute VM/Render worker are better fits.
+
+2) One‑click on Render (background worker):
+
+```
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
+```
+
+Render reads `render.yaml`, builds the Docker image, and asks you to provide your own secrets.
+
+3) Docker anywhere:
+
+```
+docker build -t bananas-bot .
+docker run --env-file .env --name bananas bananas-bot
 ```
 
 Tip: Encourage users to deploy their own copy with their own `GEMINI_API_KEY` to distribute usage fairly.
@@ -154,6 +173,11 @@ Tip: Encourage users to deploy their own copy with their own `GEMINI_API_KEY` to
 ## 🤝 Contributing
 
 Issues and PRs welcome. Please remove any secrets from logs and avoid sharing `.env` content in issues.
+
+If you’re forking for your own bot:
+- Fork this repo and keep it as a template for others
+- Add your own `GEMINI_API_KEY`, Reddit credentials, and a personal images repo + token
+- Your instance = your keys. The original author pays nothing for your usage
 
 ---
 
