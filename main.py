@@ -147,8 +147,8 @@ def stream_and_reply(reddit: praw.Reddit) -> None:
                     chunks.append(chunk)
                 img_bytes = b"".join(chunks)
 
-                b64_in = base64.b64encode(img_bytes).decode("ascii")
                 from google import genai
+                from google.genai import types
                 from io import BytesIO
 
                 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
@@ -160,18 +160,47 @@ def stream_and_reply(reddit: praw.Reddit) -> None:
                     "Requirements: output an edited image only; return ONLY a PNG image as inline data; no textual responses; keep resolution similar to the input."
                 )
 
+                # pass RAW BYTES, not base64
+                img_part = types.Part.from_bytes(img_bytes, mime_type=mime)
                 response = client.models.generate_content(
                     model="gemini-2.5-flash-image-preview",
-                    contents=[prompt, {"inline_data": {"mime_type": mime, "data": b64_in}}],
+                    contents=[prompt, img_part],
                 )
 
+                out_bytes = None
                 for part in response.candidates[0].content.parts:
-                    if part.inline_data:
-                        b64_png = base64.b64encode(part.inline_data.data).decode("ascii")
+                    if getattr(part, "inline_data", None) is not None:
+                        out_bytes = part.inline_data.data
                         break
                 else:
                     raise RuntimeError("No image data returned")
                 import datetime, hashlib
+                def upload_to_github(file_bytes: bytes, ext: str) -> str:
+                    token = os.getenv("GITHUB_TOKEN")
+                    repo = os.getenv("GITHUB_REPO")
+                    branch = os.getenv("GITHUB_BRANCH", "main")
+                    path = f"{datetime.datetime.utcnow().strftime('%Y%m%d-%H%M%S')}-{hashlib.md5(file_bytes).hexdigest()[:8]}.{ext}"
+                    url = f"https://api.github.com/repos/{repo}/contents/{path}"
+                    payload = {
+                        "message": f"auto-upload {path}",
+                        "content": base64.b64encode(file_bytes).decode("ascii"),
+                        "branch": branch,
+                    }
+                    gh = requests.put(
+                        url,
+                        json=payload,
+                        headers={
+                            "Authorization": f"token {token}",
+                            "Accept": "application/vnd.github+json",
+                        },
+                        timeout=30,
+                    )
+                    gh.raise_for_status()
+                    file_url = gh.json().get("content", {}).get("download_url") or gh.json().get("content", {}).get("html_url")
+                    if not file_url:
+                        raise RuntimeError("GitHub upload did not return a download URL")
+                    return file_url
+                
                 token = os.getenv("GITHUB_TOKEN")
                 repo = os.getenv("GITHUB_REPO")
                 branch = os.getenv("GITHUB_BRANCH", "main")
@@ -181,27 +210,12 @@ def stream_and_reply(reddit: praw.Reddit) -> None:
                 if not repo or repo.startswith("your-github-username/"):
                     raise RuntimeError("GITHUB_REPO is not set (expected 'owner/repo')")
 
-                path = f"{datetime.datetime.utcnow().strftime('%Y%m%d-%H%M%S')}-{hashlib.md5(b64_png.encode()).hexdigest()[:8]}.png"
-                url = f"https://api.github.com/repos/{repo}/contents/{path}"
-                payload = {
-                    "message": f"auto-upload {path}",
-                    "content": b64_png,
-                    "branch": branch,
-                }
-                gh = requests.put(
-                    url,
-                    json=payload,
-                    headers={
-                        "Authorization": f"token {token}",
-                        "Accept": "application/vnd.github+json",
-                    },
-                    timeout=30,
-                )
-                gh.raise_for_status()
-                img_url = gh.json().get("content", {}).get("download_url") or gh.json().get("content", {}).get("html_url")
-                if not img_url:
-                    raise RuntimeError("GitHub upload did not return a download URL")
-                comment.reply(f"🍌 edited: {img_url}")
+                # use the helper for the image bytes we got from Gemini
+                img_url = upload_to_github(out_bytes, "png")
+                from voice import narrate
+                mp3_bytes = narrate(f"Edit applied: {user_instruction}")
+                mp3_url = upload_to_github(mp3_bytes, "mp3")
+                comment.reply(f"🍌 edited image: {img_url}\n🔊 narrated: {mp3_url}")
             except Exception as e:
                 logging.exception("Image pipeline failed: %s", e)
             time.sleep(6)

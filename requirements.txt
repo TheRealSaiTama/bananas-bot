@@ -1,4 +1,9 @@
-praw>=7.7.1
-python-dotenv>=1.0.1
-requests>=2.31.0
-google-genai>=1.33.0
+google-genai==0.6.0
+pillow==10.4.0
+numpy==2.0.2
+requests==2.32.3
+insightface==0.7.3
+onnxruntime==1.18.0
+scikit-image==0.24.0
+lpips==0.1.4
+torch>=2.2.0
