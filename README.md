@@ -127,7 +127,7 @@ python main.py
 Add a “Deploy to Cloud Run” button to your fork for one‑click setups:
 
 ```
-[![Deploy to Google Cloud](https://deploy.cloud.run/button.svg)](https://deploy.cloud.run/?git_repo=https://github.com/YOUR_NAME/YOUR_REPO)
+[![Deploy to Google Cloud](https://deploy.cloud.run/button.svg)](https://deploy.cloud.run/?git_repo=https://github.com/TheRealSaiTama/bananas-bot)
 ```
 
 Tip: Encourage users to deploy their own copy with their own `GEMINI_API_KEY` to distribute usage fairly.
@@ -162,4 +162,3 @@ Issues and PRs welcome. Please remove any secrets from logs and avoid sharing `.
 Made with 🍌 — happy hacking!
 
 </div>
-
