@@ -1,7 +1,5 @@
 import type { Metadata } from 'next'
 import '../styles/globals.css'
-import Header from '@/components/header'
-import Footer from '@/components/footer'
 import CookieBanner from '@/components/cookie-banner'
 
 export const metadata: Metadata = {
@@ -13,7 +11,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        {/* Check if we're on the homepage to use different layout */}
         {children}
         <CookieBanner />
       </body>
