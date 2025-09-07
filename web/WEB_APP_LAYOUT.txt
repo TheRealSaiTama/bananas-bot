@@ -1,0 +1,171 @@
+BANANAS WEB — PRODUCT LAYOUT AND FEATURE SPEC
+Version: 0.1 (living document)
+
+GOALS
+- Give people a fast, friendly way to: (1) browse bot outputs, (2) try image editing with the “Nano Banana” model (Gemini 2.5 Flash Image preview) and optional Fal.ai, and (3) publish/share results.
+- Keep all keys Bring‑Your‑Own‑Key (BYOK) client‑side for easy self‑hosting and safety.
+- Make “Try On” (virtual accessories/clothes) an intuitive, high‑quality experience.
+
+TOP‑LEVEL NAVIGATION
+- Header (sticky): Brand title, links: Home (Gallery), Playground, Docs/About, BYOK button (drawer), optional Admin (for owners)
+- Footer: “Made with Gemini 2.5 Flash Image · SynthID watermark”, Calls left (local), links to Privacy/Cookies/Terms, GitHub repo link, version tag
+
+INFORMATION ARCHITECTURE
+- Home (/): Gallery grid with filters and quick actions
+- Playground (/playground): Tabs — Edit, Blend, Try On, Comic
+- About (/about), Privacy (/privacy), Cookies (/cookies)
+- API routes under /api: edit, blend, tryon, comic, tts, gallery
+- Optional Admin (/admin): usage dashboards, moderation (vNext)
+
+GALLERY (HOME)
+- Grid of generated PNGs from configured GitHub repo (NEXT_PUBLIC_GALLERY_REPO)
+  - Lazy‑load, infinite scroll, responsive masonry/grid
+  - Item card shows provider badge (Gemini/Fal), mode (edit/blend/tryon/comic), short instruction
+  - Hover/Actions: View, Download, Copy link, Copy data URL, Listen (if MP3 exists), “Open in Playground” (prefills source & instruction)
+  - Sorting: newest first (filename timestamp), toggles for oldest first, A→Z
+  - Filters: provider, mode, narrated only, search “in:instruction text”, date range (from filename), tag (from sidecar meta)
+- Item modal
+  - Large preview (max height cap), metadata (timestamp, provider, model, mode, instruction), MP3 playback
+  - Buttons: Remix in Playground, Download PNG/MP3, Copy direct links, Open raw on GitHub
+- Empty/Errors
+  - Friendly empty state with “Try the Playground” CTA
+
+PLAYGROUND (TABS)
+COMMON UX
+- BYOK indicator (Gemini and optional Fal/ElevenLabs). Keys are stored in localStorage only.
+- Image inputs support: URL fetch or file upload (PNG/JPG up to 6MB). Previews, size/format validation.
+- Advanced panel (collapsed): strength/hints text (freeform), “keep composition”, “preserve identity”, seed (if supported later), output size target (soft — model keeps similar resolution).
+- Results area: capped preview (object‑contain), actions (Download, Copy to clipboard, Publish to gallery [requires GitHub token+repo provided by user for their own repo]).
+
+EDIT TAB
+- Inputs: one base image (URL or upload), instruction text
+- Provider: Gemini (Nano Banana) or Fal.ai (optional)
+- Variants: 1–3
+- Advanced: “Keep composition” toggle, subtlety intensity hint (low/medium/high)
+- Output: 1–3 variants in a grid; per‑variant actions
+
+BLEND TAB (STYLE/OBJECT FUSION)
+- Inputs: base image + reference image, instruction
+- Provider: Gemini (preferred); Fal.ai optional (single‑image edit fallback)
+- Modes (radio):
+  - Style Transfer (use second image style)
+  - Object Insert (place object from second image)
+  - Background Replace (use second as new background)
+- Auto‑hints: “match lighting and perspective, preserve subject integrity, soft contact shadow”
+
+TRY ON TAB (VIRTUAL WEAR)
+- Purpose: place an item (sunglasses, glasses, necklace, shirt/t‑shirt/jacket, hat, earrings, watch, bracelet, ring, shoes) onto person photo.
+- Inputs: Base (person) + Item (transparent PNG preferred), Category select, Notes (e.g., “gold rim; medium size; center on eyes”) — already implemented server‑side with correct ordering (ITEM first, PERSON second) for Gemini.
+- Optional placement helpers (vNext):
+  - Rough overlay tool: drag/scale an item preview on top of base for position hints (client only). Sends numeric hints (x,y,scale,rotation) in the prompt.
+  - Anchor templates: eyes/neck/wrist/torso/feet to bias placement.
+- Output: single image with realistic placement; same actions as Edit.
+
+COMIC TAB
+- Inputs: Persona image, Style string, 4 panel prompts
+- Provider: Gemini (Nano Banana)
+- Behavior: generates 4 panels in parallel; client composes 2×2 montage via Canvas
+- Options (vNext): speech bubble text overlays (on/off), border style, montage gaps/padding color, panel captions
+
+BYOK DRAWER
+- Fields: Gemini API key (required), Fal.ai API key (optional), ElevenLabs API key (optional), Voice ID (for TTS), default provider selector, call budget (local hint only)
+- Actions: Test Gemini, Test ElevenLabs, Save, Clear, 5‑second Reveal
+- Storage: localStorage only; never sent to server except as request headers for the current action
+
+API SURFACE (EDGE‑FRIENDLY)
+- POST /api/edit
+  body: multipart (imageFile + instruction + provider + variants) or JSON ({ imageUrl, instruction, provider, variants })
+  headers: x-gemini-key, x-fal-key (as applicable)
+  response: { images: [dataUrl...], provider }
+
+- POST /api/blend
+  body: multipart (baseFile, refFile, instruction, provider) or JSON ({ baseUrl, refUrl, instruction, provider })
+  response: { image: dataUrl, provider }
+
+- POST /api/tryon
+  body: multipart (baseFile, itemFile, category, notes) or JSON ({ baseUrl, itemUrl, category, notes })
+  behavior: ITEM is first image, PERSON second (important for Nano Banana)
+  response: { image: dataUrl, provider: 'gemini' }
+
+- POST /api/comic
+  body: multipart (personaFile, style, panels[4]) or JSON ({ personaUrl, style, panels })
+  response: { montagePng: dataUrl | '', panels: [dataUrl×4], provider }
+  note: montage is composed client‑side to avoid native sharp dependency
+
+- POST /api/tts
+  body: { text, voiceId? } with header x-elevenlabs-key
+  response: MP3 bytes
+
+- GET /api/gallery
+  response: [{ pngUrl, mp3Url?, meta? }]
+
+PUBLISHING TO GALLERY (OPTIONAL, USER‑OWNED)
+- “Publish” button in results allows users to provide their own GitHub token+repo to upload:
+  - Upload PNG
+  - Optional MP3 (if generated) and .meta.json sidecar ({ instruction, mode, provider, model, createdAt })
+  - Adds to their own repo; this site reads a public gallery repo configured via env
+
+ACCESSIBILITY & UX POLISH
+- Keyboard focus states, ARIA labels for buttons (Play/Pause TTS, Publish, Copy Link)
+- High‑contrast theme and dark mode (Tailwind class switch with localStorage)
+- Reduced motion setting respected for subtle animations
+- Skeleton loaders for images
+
+PERFORMANCE
+- Edge routes for lightweight APIs; Node only when necessary (currently none)
+- Streaming/lazy rendering of large grids; responsive images where possible
+- Client results use object‑contain with max-height to keep layouts stable
+
+SECURITY & PRIVACY
+- BYOK keys live only in localStorage and are sent as headers only to the app’s own routes; never logged
+- No tracking cookies; cookie banner strictly for localStorage disclosure
+- Rate limit hints (local) to discourage excessive calls
+- Clear disclaimer: images carry SynthID watermarks; user responsible for content
+
+ADMIN (VNEXT)
+- /admin (behind GitHub OAuth or basic auth via environment flag)
+  - Usage dashboard: per‑provider success/error counts, latency, size distribution
+  - Moderation queue: report/remove links (if the site hosts its own gallery)
+  - Feature flags: enable Fal.ai, enable TTS, enable Publish, default provider, hard limits
+  - Health: model status pings, last 10 error traces (redacted)
+
+ADVANCED ROADMAP
+- Position & scale hints for Try On (drag handles), face‑landmark‑assisted placement
+- Mask/inpaint tool: quick brush to constrain edits to a region
+- Background removal/replace helper prior to blend/try‑on (client‑side canvas or remote API)
+- Batch runs (queue): submit 5 instructions and download a ZIP of variants
+- Prompt presets: one‑click styles (vaporwave, watercolor, cinematic, product photo)
+- Share links with compact state (URL hash) to auto‑prefill Playground
+- PWA: offline gallery browsing and queued publish when online
+- Multi‑tenant gallery switcher (drop‑down to view different public repos)
+- Webhooks: notify after publish; Discourse/Reddit link back
+
+NON‑FUNCTIONAL REQUIREMENTS
+- Resilient error messages surfaced to the user (show upstream message when safe)
+- Timeouts: Edit/Blend/Try On ≤ 25s typical; Comic ≤ 60s total (4 parallel calls)
+- File limits: 6MB per image; types: PNG/JPG; WEBP can be converted client‑side (vNext)
+- Logging: console.warn for unexpected API shapes; avoid printing secrets
+
+IMPLEMENTATION CHECKLIST (CURRENT STATE → TARGET)
+1. ✔ BYOK Drawer (save/clear/test; done)
+2. ✔ Gallery + API (done)
+3. ✔ Edit, Blend basic (done)
+4. ✔ Try On basic (done, correct image ordering)
+5. ✔ Comic with client montage (done)
+6. ☐ Publish to GitHub from UI (user’s repo + .meta.json)
+7. ☐ Filters/search/tags in Gallery
+8. ☐ Advanced options panel (composition/strength hints)
+9. ☐ Position/scale hints for Try On
+10. ☐ Prompt presets library
+11. ☐ Dark mode toggle
+12. ☐ Admin (optional)
+
+COPY & MESSAGING
+- Transparency footer: “Made with Gemini 2.5 Flash Image · SynthID watermark”
+- Empty states: encourage users to try Playground and BYOK
+- Safety reminder near Publish: “Only publish content you have rights to; remove sensitive info”
+
+NOTES
+- The app intentionally avoids server‑stored secrets. All paid usage is on the user’s own keys.
+- Some model features may vary by key access; errors reflect upstream responses.
+

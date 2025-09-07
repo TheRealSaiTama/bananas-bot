@@ -30,3 +30,20 @@ Thumbs.db
 
 # Test caches
 .pytest_cache/
+
+.config/
+
+# JavaScript/Next.js (web app)
+web/node_modules/
+web/.next/
+web/.turbo/
+web/.vercel/
+web/.cache/
+web/coverage/
+web/.nyc_output/
+web/npm-debug.log*
+web/yarn-debug.log*
+web/yarn-error.log*
+web/pnpm-debug.log*
+web/.env.local
+web/.env.*.local
