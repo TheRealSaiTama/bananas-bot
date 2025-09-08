@@ -101,6 +101,11 @@ pip install -r requirements.txt
 python main.py
 ```
 
+### Web Playground (Optional)
+
+- A companion Next.js app lives in `web/` with a gallery and BYOK playground (Edit / Blend / Comic).
+- See `web/README.md` for setup and deploy instructions (Vercel‑friendly, no server‑side secrets).
+
 ---
 
 ## 🛡️ Safety & Guardrails

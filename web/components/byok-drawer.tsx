@@ -88,46 +88,74 @@ export default function BYOKDrawer() {
 
   return (
     <>
-      <button className="btn h-9 px-4 rounded-xl bg-black text-white border border-white/20 hover:bg-neutral-900" onClick={() => setOpen(true)}>BYOK</button>
+      <button
+        className="btn h-12 px-6 text-lg rounded-2xl bg-black text-white border border-white/25 hover:bg-white hover:text-black hover:border-black/30 transition-all duration-200 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]"
+        onClick={() => setOpen(true)}
+      >
+        BYOK
+      </button>
       {open && (
-        <div className="fixed inset-0 z-40">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-0 h-full w-[440px] bg-white shadow-xl p-4 flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold">Bring Your Own Keys</h2>
-              <button className="btn btn-ghost" onClick={() => setOpen(false)}>Close</button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs text-neutral-600">Gemini API Key</label>
-                <input className={`input ${validGemini(keys.gemini)?'':'border-red-300'}`} placeholder="AIza..." value={masked.gemini} onChange={(e)=>setKeys(k=>({...k, gemini:e.target.value}))} onFocus={()=>setReveal(true)} onBlur={()=>{ setReveal(false) }} />
-                {!validGemini(keys.gemini) && <div className="text-xs text-red-600 mt-1">Looks invalid</div>}
+        <div className="fixed inset-0 z-[1000]">
+          <div className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <div className="fixed right-0 top-0 bottom-0 z-10 w-[560px] md:w-[600px] lg:w-[640px] max-w-[90vw] pointer-events-auto">
+            <div className="flex h-screen min-h-0 flex-col bg-gradient-to-b from-neutral-900/95 via-neutral-900/80 to-purple-900/70 border-l border-white/10 shadow-xl overflow-hidden">
+              <div className="px-6 pt-6 pb-4 flex items-center justify-between shrink-0">
+                <h2 className="text-white text-lg font-semibold">Bring Your Own Keys</h2>
+                <button className="btn btn-ghost" onClick={() => setOpen(false)}>Close</button>
               </div>
-              <div>
-                <label className="text-xs text-neutral-600">Fal.ai API Key (optional)</label>
-                <input className={`input ${validFal(keys.fal)?'':'border-red-300'}`} placeholder="fal_sk_..." value={masked.fal} onChange={(e)=>setKeys(k=>({...k, fal:e.target.value}))} onFocus={()=>setReveal(true)} onBlur={()=>setReveal(false)} />
+              <div className="px-6 pb-4 overflow-y-auto flex-1 min-h-0 space-y-4 overscroll-contain">
+                <div>
+                  <label className="text-xs text-white/70">Gemini API Key</label>
+                  <input
+                    className={`input h-12 text-base ${validGemini(keys.gemini)?'':'border-red-400/60'}`}
+                    placeholder="AIza..."
+                    value={masked.gemini}
+                    onChange={(e)=>setKeys(k=>({...k, gemini:e.target.value}))}
+                    onFocus={()=>setReveal(true)}
+                    onBlur={()=>{ setReveal(false) }}
+                  />
+                  {!validGemini(keys.gemini) && <div className="text-xs text-red-400 mt-1">Looks invalid</div>}
+                </div>
+                <div>
+                  <label className="text-xs text-white/70">Fal.ai API Key (optional)</label>
+                  <input
+                    className={`input h-12 text-base ${validFal(keys.fal)?'':'border-red-400/60'}`}
+                    placeholder="fal_sk_..."
+                    value={masked.fal}
+                    onChange={(e)=>setKeys(k=>({...k, fal:e.target.value}))}
+                    onFocus={()=>setReveal(true)}
+                    onBlur={()=>setReveal(false)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-white/70">ElevenLabs API Key (optional)</label>
+                  <input
+                    className={`input h-12 text-base ${valid11(keys.eleven)?'':'border-red-400/60'}`}
+                    placeholder="eleven_..."
+                    value={masked.eleven}
+                    onChange={(e)=>setKeys(k=>({...k, eleven:e.target.value}))}
+                    onFocus={()=>setReveal(true)}
+                    onBlur={()=>setReveal(false)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-white/70">ElevenLabs Voice ID</label>
+                  <input className="input h-12 text-base" placeholder="21m00Tcm4TlvDq8ikWAM (Rachel)" value={keys.voiceId || ''} onChange={(e)=>setKeys(k=>({...k, voiceId:e.target.value}))} />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button className="btn bg-white/10 text-white hover:bg-white/20" onClick={testGemini}>Test Gemini</button>
+                  <button className="btn bg-white/10 text-white hover:bg-white/20" onClick={test11}>Test ElevenLabs</button>
+                  <button className="btn bg-white/10 text-white hover:bg-white/20" onClick={() => { setReveal(true); setTimeout(()=>setReveal(false), 5000) }}>Reveal 5s</button>
+                </div>
+                {status && <div className="text-xs text-green-400">{status}</div>}
+                {err && <div className="text-xs text-red-400">{err}</div>}
               </div>
-              <div>
-                <label className="text-xs text-neutral-600">ElevenLabs API Key (optional)</label>
-                <input className={`input ${valid11(keys.eleven)?'':'border-red-300'}`} placeholder="eleven_..." value={masked.eleven} onChange={(e)=>setKeys(k=>({...k, eleven:e.target.value}))} onFocus={()=>setReveal(true)} onBlur={()=>setReveal(false)} />
+              <div className="px-6 py-4 flex gap-2 border-t border-white/10 shrink-0">
+                <button className="btn bg-white/10 text-white hover:bg-white/20" onClick={clear}>Clear</button>
+                <button className="btn h-12 px-6 text-lg rounded-2xl bg-white text-black hover:bg-neutral-200 ml-auto" onClick={save}>Save</button>
               </div>
-              <div>
-                <label className="text-xs text-neutral-600">ElevenLabs Voice ID</label>
-                <input className="input" placeholder="21m00Tcm4TlvDq8ikWAM (Rachel)" value={keys.voiceId || ''} onChange={(e)=>setKeys(k=>({...k, voiceId:e.target.value}))} />
-              </div>
+              <p className="px-6 pb-6 text-xs text-white/60 shrink-0">Keys live only in your browser; we don’t store them.</p>
             </div>
-            <div className="flex gap-2">
-              <button className="btn" onClick={testGemini}>Test Gemini</button>
-              <button className="btn" onClick={test11}>Test ElevenLabs</button>
-              <button className="btn" onClick={() => { setReveal(true); setTimeout(()=>setReveal(false), 5000) }}>Reveal 5s</button>
-            </div>
-            <div className="mt-auto flex gap-2">
-              <button className="btn" onClick={clear}>Clear</button>
-              <button className="btn btn-primary ml-auto" onClick={save}>Save</button>
-            </div>
-            <p className="text-xs text-neutral-500">Keys live only in your browser; we don’t store them.</p>
-            {status && <div className="text-xs text-green-700">{status}</div>}
-            {err && <div className="text-xs text-red-600">{err}</div>}
           </div>
         </div>
       )}
