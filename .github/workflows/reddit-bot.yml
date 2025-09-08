@@ -1,0 +1,75 @@
+name: Reddit Bot (cron)
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # every 5 minutes
+  workflow_dispatch: {}      # manual run button
+
+permissions:
+  contents: write   # to commit .state/*.json updates
+
+concurrency:
+  group: reddit-bot
+  cancel-in-progress: true
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install deps
+        run: |
+          pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # ensure runtime libs the bot needs
+          pip install praw requests python-dotenv google-genai pillow
+
+      - name: Run bot once
+        env:
+          # Reddit
+          REDDIT_CLIENT_ID:     ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USER_AGENT:    ${{ secrets.REDDIT_USER_AGENT }}
+          REDDIT_USERNAME:      ${{ secrets.REDDIT_USERNAME }}
+          REDDIT_PASSWORD:      ${{ secrets.REDDIT_PASSWORD }}
+          # Gemini
+          GEMINI_API_KEY:       ${{ secrets.GEMINI_API_KEY }}
+          # Optional narration
+          ELEVENLABS_API_KEY:   ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID:  ${{ secrets.ELEVENLABS_VOICE_ID }}
+          # Image hosting repo (your *images* repo)
+          GITHUB_TOKEN:         ${{ secrets.IMG_GITHUB_TOKEN }}
+          GITHUB_REPO:          ${{ vars.GITHUB_IMAGES_REPO }}
+          GITHUB_BRANCH:        ${{ vars.GITHUB_IMAGES_BRANCH }}
+          # Bot behavior
+          SUBREDDITS:           ${{ vars.SUBREDDITS }}        # e.g. "test"
+          MAX_PER_RUN:          ${{ vars.MAX_PER_RUN || 3 }}
+          MAX_CALLS_PER_DAY:    ${{ vars.MAX_CALLS_PER_DAY || 95 }}
+        run: python bot_once.py
+
+      - name: Commit state (seen/usage)
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .state/*.json || true
+          git commit -m "bot: update state [skip ci]" || echo "No state changes"
+          git push
+
