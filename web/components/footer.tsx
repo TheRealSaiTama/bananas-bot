@@ -17,7 +17,7 @@ export default function Footer() {
       >
         <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-sm">
           <div className="text-white/90 text-center md:text-left">
-            Made with Gemini 2.5 Flash · SynthID watermark
+            Made with Gemini 2.5 Flash Image — outputs include SynthID watermark.
           </div>
           <div className="flex items-center gap-3">
             <span className="text-white/80 text-xs">Calls Left:</span>
@@ -38,7 +38,7 @@ export default function Footer() {
               alt="GitHub"
               className="h-[42px] w-[42px] rounded-[10px]"
             />
-            <a href="https://github.com" target="_blank" rel="noreferrer" className="text-white/90 hover:text-white">View on GitHub</a>
+            <a href="https://github.com/TheRealSaiTama/bananas-bot" target="_blank" rel="noreferrer" className="text-white/90 hover:text-white">View on GitHub</a>
           </div>
         </div>
       </div>

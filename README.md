@@ -124,6 +124,7 @@ python main.py
 - `ALLOWED_USERS` (comma‑separated usernames; optional)
 - `GEMINI_API_KEY`
 - `GITHUB_TOKEN`, `GITHUB_REPO` (e.g. `owner/repo`), `GITHUB_BRANCH`
+- `DAILY_BUDGET_CALLS` — hard daily cap (Pacific Time); replies "capacity resets at PT midnight" when exceeded.
 
 ---
 

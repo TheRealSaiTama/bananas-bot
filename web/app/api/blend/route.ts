@@ -5,7 +5,7 @@ import * as Fal from '@/lib/fal'
 
 export const runtime = 'nodejs'
 
-type BlendJson = { baseUrl?: string; refUrl?: string; instruction: string; provider?: 'fal' | 'gemini' }
+type BlendJson = { baseUrl?: string; refUrl?: string; instruction: string; provider?: 'fal' | 'gemini'; variants?: number }
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
     let baseMime: string
     let refBytes: Uint8Array
     let refMime: string
+    let variants = 1
 
     if (ct.includes('multipart/form-data')) {
       const form = await req.formData()
@@ -27,12 +28,14 @@ export async function POST(req: NextRequest) {
       const baseFile = form.get('baseFile') as File | null
       const refFile = form.get('refFile') as File | null
       if (!baseFile || !refFile) throw new Error('Files missing')
+      variants = Math.max(1, Math.min(Number(form.get('variants') || 1), 3))
       const b = await fileToBuffer(baseFile); baseBytes = b.bytes; baseMime = b.mime
       const r = await fileToBuffer(refFile); refBytes = r.bytes; refMime = r.mime
     } else {
       const body = await req.json() as BlendJson
       instruction = body.instruction
       provider = body.provider === 'fal' ? 'fal' : 'gemini'
+      variants = Math.max(1, Math.min(body.variants || 1, 3))
       if (!body.baseUrl || !body.refUrl) throw new Error('URLs missing')
       const b = await downloadToBuffer(body.baseUrl); if (!isSupportedMime(b.mime)) throw new Error('Unsupported base type')
       const r = await downloadToBuffer(body.refUrl); if (!isSupportedMime(r.mime)) throw new Error('Unsupported ref type')
@@ -41,11 +44,13 @@ export async function POST(req: NextRequest) {
     }
 
     const prompt = ensureBlendPrompt(instruction)
-    let out: Uint8Array
-    if (provider === 'fal') out = await Fal.edit(baseBytes, baseMime, prompt, falKey)
-    else out = await Gemini.blend(baseBytes, baseMime, refBytes, refMime, prompt, gemKey)
-
-    return Response.json({ image: `data:image/png;base64,${bytesToB64(out)}`, provider })
+    const outs: Uint8Array[] = []
+    for (let i = 0; i < variants; i++) {
+      if (provider === 'fal') outs.push(await Fal.edit(baseBytes, baseMime, prompt, falKey))
+      else outs.push(await Gemini.blend(baseBytes, baseMime, refBytes, refMime, prompt, gemKey))
+    }
+    const images = outs.map(u8 => `data:image/png;base64,${bytesToB64(u8)}`)
+    return Response.json({ images, provider })
   } catch (_err: any) {
     return new Response(JSON.stringify({ error: 'Blend failed' }), { status: 500 })
   }

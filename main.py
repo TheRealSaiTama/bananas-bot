@@ -6,6 +6,7 @@ import sys
 import re
 import praw
 from dotenv import load_dotenv
+import storage
 
 load_dotenv()
 
@@ -67,11 +68,13 @@ def stream_and_reply(reddit: praw.Reddit) -> None:
     subreddits = os.getenv("SUBREDDITS", "test")
     max_calls_per_hour = int(os.getenv("MAX_CALLS_PER_HOUR", "10"))
     user_cooldown_sec = int(os.getenv("USER_COOLDOWN_SECONDS", "120"))
+    daily_budget_calls = int(os.getenv("DAILY_BUDGET_CALLS", "200"))
     rate_limit_mode = os.getenv("RATE_LIMIT_MODE", "skip").lower()
     rate_limit_message = os.getenv(
         "RATE_LIMIT_MESSAGE",
         "🍌 I'm at capacity right now. Try again in a bit!",
     )
+    capacity_reset_msg = "🍌 At capacity for today — capacity resets at PT midnight."
     allowed_users_env = os.getenv("ALLOWED_USERS", "")
     allowed_users = {
         u.strip().lower()
@@ -79,8 +82,6 @@ def stream_and_reply(reddit: praw.Reddit) -> None:
         if u.strip()
     }
 
-    processed_comment_ids: set[str] = set()
-    user_last_call: dict[str, float] = {}
     window_start = time.time()
     calls_this_hour = 0
 
@@ -91,9 +92,8 @@ def stream_and_reply(reddit: praw.Reddit) -> None:
             print("MATCH!")
             import requests, base64, tempfile
             try:
-                if getattr(comment, "id", None) in processed_comment_ids:
+                if storage.is_processed(getattr(comment, "id", "")):
                     continue
-                processed_comment_ids.add(comment.id)
 
                 now = time.time()
                 if now - window_start >= 3600:
@@ -102,8 +102,16 @@ def stream_and_reply(reddit: praw.Reddit) -> None:
 
                 author = getattr(getattr(comment, "author", None), "name", None) or "anonymous"
                 if allowed_users and author.lower() not in allowed_users:
+                    # Educate and deflect to self-serve
+                    try:
+                        comment.reply(
+                            "🍌 Hey! This instance is limited. Fork & deploy your own: "
+                            "https://github.com/TheRealSaiTama/bananas-bot"
+                        )
+                    except Exception:
+                        pass
                     continue
-                last_call = user_last_call.get(author, 0)
+                last_call = storage.get_user_last_call(author)
                 if now - last_call < user_cooldown_sec:
                     if rate_limit_mode == "reply":
                         try:
@@ -111,6 +119,16 @@ def stream_and_reply(reddit: praw.Reddit) -> None:
                         except Exception:
                             pass
                     continue
+
+                # Daily budget (PT). Stop early if out of capacity.
+                if daily_budget_calls >= 0:
+                    used = storage.get_usage(storage.today_pt_key())
+                    if used >= daily_budget_calls:
+                        try:
+                            comment.reply(capacity_reset_msg + "\nFork & deploy your own: https://github.com/TheRealSaiTama/bananas-bot")
+                        except Exception:
+                            pass
+                        continue
 
                 if max_calls_per_hour >= 0 and calls_this_hour >= max_calls_per_hour:
                     if rate_limit_mode == "reply":
@@ -120,7 +138,7 @@ def stream_and_reply(reddit: praw.Reddit) -> None:
                             pass
                     continue
 
-                user_last_call[author] = now
+                storage.set_user_last_call(author, now)
                 calls_this_hour += 1
 
                 url = getattr(getattr(comment, "submission", None), "url_overridden_by_dest", None)
@@ -186,20 +204,27 @@ def stream_and_reply(reddit: praw.Reddit) -> None:
                         "content": base64.b64encode(file_bytes).decode("ascii"),
                         "branch": branch,
                     }
-                    gh = requests.put(
-                        url,
-                        json=payload,
-                        headers={
-                            "Authorization": f"token {token}",
-                            "Accept": "application/vnd.github+json",
-                        },
-                        timeout=30,
-                    )
-                    gh.raise_for_status()
-                    file_url = gh.json().get("content", {}).get("download_url") or gh.json().get("content", {}).get("html_url")
-                    if not file_url:
-                        raise RuntimeError("GitHub upload did not return a download URL")
-                    return file_url
+                    last_exc = None
+                    for attempt in range(2):
+                        try:
+                            gh = requests.put(
+                                url,
+                                json=payload,
+                                headers={
+                                    "Authorization": f"token {token}",
+                                    "Accept": "application/vnd.github+json",
+                                },
+                                timeout=30,
+                            )
+                            gh.raise_for_status()
+                            file_url = gh.json().get("content", {}).get("download_url") or gh.json().get("content", {}).get("html_url")
+                            if not file_url:
+                                raise RuntimeError("GitHub upload did not return a download URL")
+                            return file_url
+                        except Exception as ex:
+                            last_exc = ex
+                            time.sleep(1.5)
+                    raise RuntimeError(f"GitHub upload failed after retry: {last_exc}")
                 
                 token = os.getenv("GITHUB_TOKEN")
                 repo = os.getenv("GITHUB_REPO")
@@ -211,11 +236,26 @@ def stream_and_reply(reddit: praw.Reddit) -> None:
                     raise RuntimeError("GITHUB_REPO is not set (expected 'owner/repo')")
 
                 # use the helper for the image bytes we got from Gemini
+                # Upload image; only after a successful upload do we count usage
                 img_url = upload_to_github(out_bytes, "png")
-                from voice import narrate
-                mp3_bytes = narrate(f"Edit applied: {user_instruction}")
-                mp3_url = upload_to_github(mp3_bytes, "mp3")
-                comment.reply(f"🍌 edited image: {img_url}\n🔊 narrated: {mp3_url}")
+
+                mp3_url = None
+                try:
+                    from voice import narrate
+                    mp3_bytes = narrate(f"Edit applied: {user_instruction}")
+                    mp3_url = upload_to_github(mp3_bytes, "mp3")
+                except Exception:
+                    mp3_url = None  # TTS is optional; never block image response
+
+                # Increment daily usage on success and mark processed
+                storage.increment_usage(storage.today_pt_key(), by=1)
+                storage.mark_processed(comment.id)
+
+                footer = "\n\nMade with Gemini 2.5 Flash Image — outputs include SynthID watermark."
+                if mp3_url:
+                    comment.reply(f"🍌 edited image: {img_url}\n🔊 narrated: {mp3_url}{footer}")
+                else:
+                    comment.reply(f"🍌 edited image: {img_url}{footer}")
             except Exception as e:
                 logging.exception("Image pipeline failed: %s", e)
             time.sleep(6)

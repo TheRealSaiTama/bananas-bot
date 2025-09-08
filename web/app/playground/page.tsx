@@ -11,7 +11,7 @@ type Provider = 'gemini' | 'fal'
 export default function PlaygroundPage() {
   const [tab, setTab] = useState<'edit' | 'blend' | 'tryon' | 'comic'>('edit')
   const [variants, setVariants] = useState<string[]>([])
-  const [blendImage, setBlendImage] = useState<string | null>(null)
+  const [blendImages, setBlendImages] = useState<string[]>([])
   const [tryOnImage, setTryOnImage] = useState<string | null>(null)
   const [comicPanels, setComicPanels] = useState<string[]>([])
   const [comicMontage, setComicMontage] = useState<string | null>(null)
@@ -40,7 +40,7 @@ export default function PlaygroundPage() {
           )}
 
           {tab === 'blend' && (
-            <BlendCard onResult={(img) => setBlendImage(img)} />
+            <BlendCard onResult={(imgs) => setBlendImages(imgs)} />
           )}
 
           {tab === 'tryon' && (
@@ -57,8 +57,8 @@ export default function PlaygroundPage() {
           {tab === 'edit' && variants.length > 0 && (
             <VariantGrid images={variants} />
           )}
-          {tab === 'blend' && blendImage && (
-            <FramedOutput src={blendImage} alt="blend" downloadName="blend.png" />
+          {tab === 'blend' && blendImages.length > 0 && (
+            <VariantGrid images={blendImages} />
           )}
           {tab === 'tryon' && tryOnImage && (
             <FramedOutput src={tryOnImage} alt="try-on" downloadName="try-on.png" />

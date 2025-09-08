@@ -79,7 +79,7 @@ export function EditCard({ onResult }: EditProps) {
   )
 }
 
-type BlendProps = { onResult: (image: string) => void }
+type BlendProps = { onResult: (images: string[]) => void }
 export function BlendCard({ onResult }: BlendProps) {
   const [baseUrl, setBaseUrl] = useState('')
   const [refUrl, setRefUrl] = useState('')
@@ -87,6 +87,7 @@ export function BlendCard({ onResult }: BlendProps) {
   const [refFile, setRefFile] = useState<File | null>(null)
   const [instruction, setInstruction] = useState('')
   const [provider, setProvider] = useState<'gemini' | 'fal'>('gemini')
+  const [variants, setVariants] = useState(1)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -98,15 +99,16 @@ export function BlendCard({ onResult }: BlendProps) {
         const fd = new FormData()
         fd.set('instruction', instruction)
         fd.set('provider', provider)
+        fd.set('variants', String(variants))
         fd.set('baseFile', baseFile)
         fd.set('refFile', refFile)
         res = await fetch('/api/blend', { method: 'POST', headers: hdrs(), body: fd })
       } else {
-        res = await fetch('/api/blend', { method: 'POST', headers: { ...hdrs(), 'content-type': 'application/json' }, body: JSON.stringify({ baseUrl, refUrl, instruction, provider }) })
+        res = await fetch('/api/blend', { method: 'POST', headers: { ...hdrs(), 'content-type': 'application/json' }, body: JSON.stringify({ baseUrl, refUrl, instruction, provider, variants }) })
       }
       if (!res.ok) throw new Error('Request failed')
-      const j = await res.json() as { image: string }
-      onResult(j.image)
+      const j = await res.json() as { images?: string[], image?: string }
+      onResult(j.images || (j.image ? [j.image] : []))
     } catch (e:any) { setError(e.message || 'Error') } finally { setBusy(false) }
   }
 
@@ -139,6 +141,8 @@ export function BlendCard({ onResult }: BlendProps) {
           <option value="gemini">Gemini</option>
           <option value="fal">Fal.ai</option>
         </select>
+        <label className="text-xs">Variants</label>
+        <input type="number" className="input w-20" min={1} max={3} value={variants} onChange={(e)=>setVariants(Number(e.target.value))} />
         <button className="btn btn-primary ml-auto" onClick={submit} disabled={busy}>{busy ? 'Working…' : 'Blend'}</button>
       </div>
       {error && <div className="text-sm text-red-600">{error}</div>}
